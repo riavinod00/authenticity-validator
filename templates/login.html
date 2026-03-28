@@ -1,0 +1,23 @@
+{% extends 'base.html' %}
+
+{% block title %}Login - Authenticity Validator{% endblock %}
+
+{% block content %}
+<div class="login-container glass-panel">
+    <h2>Login to Dashboard</h2>
+    <form method="POST" action="{{ url_for('login') }}">
+        <div class="form-group">
+            <label for="username">Username</label>
+            <input type="text" id="username" name="username" class="form-control" required placeholder="Enter 'admin'">
+        </div>
+        <div class="form-group">
+            <label for="password">Password</label>
+            <input type="password" id="password" name="password" class="form-control" required placeholder="Enter 'password'">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%;">Access System</button>
+    </form>
+    <p style="text-align: center; margin-top: 1.5rem; color: var(--text-muted); font-size: 0.875rem;">
+        Use default admin credentials: admin / password
+    </p>
+</div>
+{% endblock %}

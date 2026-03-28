@@ -1,0 +1,118 @@
+{% extends 'base.html' %}
+
+{% block title %}Dashboard - Authenticity Validator{% endblock %}
+
+{% block content %}
+<div class="dashboard-grid">
+    
+    <!-- Main Verification Panel -->
+    <div class="glass-panel" style="padding: 2rem;">
+        <h3 class="panel-title"><i class="fa-solid fa-magnifying-glass"></i> Certificate Verification Engine</h3>
+        
+        <div class="tabs">
+            <button class="tab active" data-target="manual-section">Manual Entry</button>
+            <button class="tab" data-target="upload-section">Document AI Scan</button>
+            <button class="tab" data-target="analytics-section">Analytics</button>
+        </div>
+        
+        <!-- Manual Entry Section -->
+        <div id="manual-section" class="tab-content" style="display: block;">
+            <form id="manual-form">
+                <div class="form-group">
+                    <label for="cert_number">Certificate Number *</label>
+                    <input type="text" id="cert_number" class="form-control" placeholder="e.g. CERT-12345" required>
+                </div>
+                <div class="form-group">
+                    <label for="student_name">Student Name</label>
+                    <input type="text" id="student_name" class="form-control" placeholder="e.g. John Doe">
+                </div>
+                <div class="form-group">
+                    <label for="institution">Institution Name</label>
+                    <input type="text" id="institution" class="form-control" placeholder="e.g. Tech University">
+                </div>
+                <button type="submit" class="btn btn-primary"><i class="fa-solid fa-check-circle"></i> Verify Certificate</button>
+            </form>
+        </div>
+        
+        <!-- Upload Section -->
+        <div id="upload-section" class="tab-content" style="display: none;">
+            <p style="margin-bottom: 1rem; color: var(--text-muted);">Upload a scanned certificate or image. Our AI Engine will perform tampering analysis and verify authenticity.</p>
+            <div class="upload-zone" id="upload-zone">
+                <i class="fa-solid fa-cloud-arrow-up upload-icon"></i>
+                <h4>Drag & Drop or Click to Upload</h4>
+                <p style="color: var(--text-muted); font-size: 0.85rem; margin-top: 0.5rem;">Supports PDF, PNG, JPG files</p>
+                <input type="file" id="file-upload" accept=".pdf,image/*" style="display: none;">
+            </div>
+        </div>
+
+        <!-- Analytics Section -->
+        <div id="analytics-section" class="tab-content" style="display: none;">
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; margin-top: 1rem;">
+                <div class="glass-panel" style="padding: 1rem;">
+                    <h4 style="text-align:center; margin-bottom: 1rem;">Verification Logs</h4>
+                    <canvas id="activityChart"></canvas>
+                </div>
+                <div class="glass-panel" style="padding: 1rem;">
+                    <h4 style="text-align:center; margin-bottom: 1rem;">Authenticity Ratio</h4>
+                    <canvas id="ratioChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- Verification Result -->
+        <div id="result-box" class="result-box">
+            <div class="result-status" id="result-status-text"></div>
+            <div id="result-message"></div>
+            <div id="result-crypto" style="margin-top: 1rem; font-family: monospace; font-size: 0.85rem; padding: 0.5rem; background: rgba(0,0,0,0.3); border-radius: 4px; display: none;"></div>
+        </div>
+    </div>
+    
+    <!-- History Panel -->
+    <div class="glass-panel" style="padding: 2rem;">
+        <h3 class="panel-title"><i class="fa-solid fa-clock-rotate-left"></i> Verification History</h3>
+        
+        <div class="history-feed">
+            {% if history %}
+                {% for item in history %}
+                <div class="history-item">
+                    <div class="history-cert">{{ item.cert_number }}</div>
+                    <div class="history-meta">
+                        <span><i class="fa-solid fa-calendar-alt"></i> {{ item.timestamp.strftime('%Y-%m-%d %H:%M') }}</span>
+                        {% if item.status == 'Verified' %}
+                            <span class="badge badge-verified">{{ item.status }}</span>
+                        {% else %}
+                            <span class="badge badge-failed">{{ item.status }}</span>
+                        {% endif %}
+                    </div>
+                    <div style="font-size: 0.8rem; color: #64748B; margin-top: 0.25rem;">
+                        Method: {{ item.method }} <br>
+                        {% if item.crypto_hash %}
+                        <span style="font-family: monospace; font-size: 0.75rem; color: var(--primary);"><i class="fa-solid fa-link"></i> {{ item.block_id }} - Hash: {{ item.crypto_hash[:16] }}...</span>
+                        {% endif %}
+                    </div>
+                </div>
+                {% endfor %}
+            {% else %}
+                <p style="color: var(--text-muted); text-align: center; padding: 2rem 0;">No history available.</p>
+            {% endif %}
+        </div>
+    </div>
+
+</div>
+
+<!-- Smart Scholar Bot -->
+<div class="smart-scholar-widget glass-panel">
+    <div class="scholar-header" onclick="toggleChat()">
+        <i class="fa-solid fa-robot"></i> Smart Scholar
+    </div>
+    <div class="scholar-body" id="scholar-body" style="display:none;">
+        <div class="chat-message bot">Hello! I'm your AI verification assistant. Learn how to spot fake watermarks!</div>
+        <div id="chat-history"></div>
+        <div class="chat-input-area">
+            <input type="text" id="chat-input" placeholder="Ask a question..." onkeypress="handleChat(event)">
+            <button onclick="sendChat()"><i class="fa-solid fa-paper-plane"></i></button>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
