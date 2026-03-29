@@ -7,7 +7,9 @@ db = SQLAlchemy()
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     username = db.Column(db.String(100), unique=True, nullable=False)
-    password_hash = db.Column(db.String(200), nullable=False)
+    email = db.Column(db.String(150), unique=True, nullable=True)
+    password_hash = db.Column(db.String(200), nullable=True)
+    google_id = db.Column(db.String(200), unique=True, nullable=True)
 
 class Certificate(db.Model):
     id = db.Column(db.Integer, primary_key=True)

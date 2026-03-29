@@ -7,6 +7,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, jso
 from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
+from authlib.integrations.flask_client import OAuth
 from models import db, User, Certificate, VerificationHistory
 
 app = Flask(__name__)
@@ -14,6 +15,24 @@ app.config['SECRET_KEY'] = 'super-secret-key-keep-it-simple'
 basedir = os.path.abspath(os.path.dirname(__name__))
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + os.path.join(basedir, 'database.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+
+# OAuth Setup
+app.config['GOOGLE_CLIENT_ID'] = os.environ.get("GOOGLE_CLIENT_ID", "YOUR_GOOGLE_CLIENT_ID_HERE")
+app.config['GOOGLE_CLIENT_SECRET'] = os.environ.get("GOOGLE_CLIENT_SECRET", "YOUR_GOOGLE_CLIENT_SECRET_HERE")
+oauth = OAuth(app)
+google = oauth.register(
+    name='google',
+    client_id=app.config['GOOGLE_CLIENT_ID'],
+    client_secret=app.config['GOOGLE_CLIENT_SECRET'],
+    access_token_url='https://accounts.google.com/o/oauth2/token',
+    access_token_params=None,
+    authorize_url='https://accounts.google.com/o/oauth2/auth',
+    authorize_params=None,
+    api_base_url='https://www.googleapis.com/oauth2/v1/',
+    userinfo_endpoint='https://openidconnect.googleapis.com/v1/userinfo',
+    client_kwargs={'scope': 'email profile'},
+    jwks_uri = "https://www.googleapis.com/oauth2/v3/certs"
+)
 
 # Upload configuration
 UPLOAD_FOLDER = os.path.join(basedir, 'uploads')
@@ -63,7 +82,7 @@ def login():
         password = request.form.get('password')
         
         user = User.query.filter_by(username=username).first()
-        if user and check_password_hash(user.password_hash, password):
+        if user and user.password_hash and check_password_hash(user.password_hash, password):
             login_user(user)
             return redirect(url_for('dashboard'))
         else:
@@ -71,6 +90,61 @@ def login():
             return redirect(url_for('login'))
             
     return render_template('login.html')
+
+@app.route('/register', methods=['GET', 'POST'])
+def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('dashboard'))
+        
+    if request.method == 'POST':
+        username = request.form.get('username')
+        email = request.form.get('email')
+        password = request.form.get('password')
+        
+        user_exists = User.query.filter((User.username == username) | ((User.email == email) & (User.email != ''))).first()
+        if user_exists:
+            flash('Username or Email already exists. Please login.')
+            return redirect(url_for('register'))
+            
+        hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
+        new_user = User(username=username, email=email, password_hash=hashed_password)
+        db.session.add(new_user)
+        db.session.commit()
+        
+        login_user(new_user)
+        return redirect(url_for('dashboard'))
+        
+    return render_template('register.html')
+
+@app.route('/login/google')
+def login_google():
+    redirect_uri = url_for('authorize_google', _external=True)
+    return google.authorize_redirect(redirect_uri)
+
+@app.route('/authorize/google')
+def authorize_google():
+    token = google.authorize_access_token()
+    resp = google.get('userinfo')
+    user_info = resp.json()
+    
+    email = user_info.get('email')
+    google_id = user_info.get('id')
+    username = user_info.get('name')
+    
+    user = User.query.filter_by(google_id=google_id).first()
+    if not user:
+        user = User.query.filter_by(email=email).first()
+        if user:
+            user.google_id = google_id
+            db.session.commit()
+        else:
+            # Create a new user from Google
+            user = User(username=username, email=email, google_id=google_id)
+            db.session.add(user)
+            db.session.commit()
+            
+    login_user(user)
+    return redirect(url_for('dashboard'))
 
 @app.route('/logout')
 @login_required

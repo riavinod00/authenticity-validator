@@ -1,0 +1,34 @@
+{% extends 'base.html' %}
+
+{% block title %}Register - Authenticity Validator{% endblock %}
+
+{% block content %}
+<div class="login-container glass-panel">
+    <h2>Create an Account</h2>
+    <form method="POST" action="{{ url_for('register') }}">
+        <div class="form-group">
+            <label for="username">Username *</label>
+            <input type="text" id="username" name="username" class="form-control" required placeholder="Choose a username">
+        </div>
+        <div class="form-group">
+            <label for="email">Email *</label>
+            <input type="email" id="email" name="email" class="form-control" required placeholder="name@example.com">
+        </div>
+        <div class="form-group">
+            <label for="password">Password *</label>
+            <input type="password" id="password" name="password" class="form-control" required placeholder="••••••••">
+        </div>
+        <button type="submit" class="btn btn-primary" style="width: 100%; margin-bottom: 1rem;">Sign Up</button>
+    </form>
+    
+    <div style="text-align: center; margin: 1rem 0; color: var(--border);">OR</div>
+    
+    <a href="{{ url_for('login_google') }}" class="btn btn-google" style="width: 100%;">
+        <i class="fa-brands fa-google"></i> Continue with Google
+    </a>
+    
+    <p style="text-align: center; margin-top: 1.5rem; color: var(--text-muted); font-size: 0.875rem;">
+        Already have an account? <a href="{{ url_for('login') }}" style="color: var(--primary); text-decoration: none;">Login here</a>
+    </p>
+</div>
+{% endblock %}
