@@ -65,7 +65,7 @@ with app.app_context():
         db.session.commit()
 
     # Add mock certificates if empty
-    if not Certificate.query.first():
+   if not Certificate.query.first():
         cert1 = Certificate(cert_number='CERT-12345', student_name='John Doe', institution='Tech University', issue_date='2025-05-15')
         cert2 = Certificate(cert_number='CERT-23456', student_name='Jane Smith', institution='Global Academy', issue_date='2024-01-20')
         cert3 = Certificate(cert_number='CERT-34567', student_name='Arjun Nair', institution='National Institute', issue_date='2023-11-10')
