@@ -54,6 +54,9 @@ def load_user(user_id):
 with app.app_context():
     db.create_all()
 
+with app.app_context():
+    db.create_all()
+
     # Add a mock admin if not exists
     if not User.query.filter_by(username='admin').first():
         hashed_password = generate_password_hash('password', method='pbkdf2:sha256')
@@ -62,16 +65,15 @@ with app.app_context():
         db.session.commit()
 
     # Add mock certificates if empty
-if not Certificate.query.first():
-    cert1 = Certificate(cert_number='CERT-12345', student_name='John Doe', institution='Tech University', issue_date='2025-05-15')
-    cert2 = Certificate(cert_number='CERT-23456', student_name='Jane Smith', institution='Global Academy', issue_date='2024-01-20')
-    cert3 = Certificate(cert_number='CERT-34567', student_name='Arjun Nair', institution='National Institute', issue_date='2023-11-10')
-    cert4 = Certificate(cert_number='CERT-45678', student_name='Meera Iyer', institution='City College', issue_date='2025-02-12')
-    cert5 = Certificate(cert_number='CERT-56789', student_name='Rahul Verma', institution='Innovation University', issue_date='2024-08-30')
+    if not Certificate.query.first():
+        cert1 = Certificate(cert_number='CERT-12345', student_name='John Doe', institution='Tech University', issue_date='2025-05-15')
+        cert2 = Certificate(cert_number='CERT-23456', student_name='Jane Smith', institution='Global Academy', issue_date='2024-01-20')
+        cert3 = Certificate(cert_number='CERT-34567', student_name='Arjun Nair', institution='National Institute', issue_date='2023-11-10')
+        cert4 = Certificate(cert_number='CERT-45678', student_name='Meera Iyer', institution='City College', issue_date='2025-02-12')
+        cert5 = Certificate(cert_number='CERT-56789', student_name='Rahul Verma', institution='Innovation University', issue_date='2024-08-30')
 
-    db.session.add_all([cert1, cert2, cert3, cert4, cert5])
-    db.session.commit()
-
+        db.session.add_all([cert1, cert2, cert3, cert4, cert5])
+        db.session.commit()
 # --- Routes ---
 
 @app.route('/')
