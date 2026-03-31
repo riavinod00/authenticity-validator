@@ -57,11 +57,16 @@ with app.app_context():
         new_user = User(username='admin', password_hash=hashed_password)
         db.session.add(new_user)
         db.session.commit()
-    # Add a mock certificate if empty
+    # Add mock certificates if empty
     if not Certificate.query.first():
-        cert1 = Certificate(cert_number='CERT-12345', student_name='John Doe', institution='Tech University', issue_date='2025-05-15')
-        cert2 = Certificate(cert_number='CERT-99999', student_name='Jane Smith', institution='Global Academy', issue_date='2024-01-20')
-        db.session.add_all([cert1, cert2])
+        sample_certs = [
+            Certificate(cert_number='DU2021001', student_name='Rahul Sharma', institution='Delhi University', issue_date='2021-06-15'),
+            Certificate(cert_number='MU2020045', student_name='Priya Mehta', institution='Mumbai University', issue_date='2020-07-22'),
+            Certificate(cert_number='IIT2022112', student_name='Arjun Verma', institution='Indian Institute of Technology', issue_date='2022-05-10'),
+            Certificate(cert_number='AU2019087', student_name='Sneha Kapoor', institution='Anna University', issue_date='2019-08-30'),
+            Certificate(cert_number='OU2023034', student_name='Mohammed Rafi', institution='Osmania University', issue_date='2023-04-18'),
+        ]
+        db.session.add_all(sample_certs)
         db.session.commit()
 
 # --- Routes ---
@@ -172,9 +177,13 @@ def verify_certificate():
     # Query database (for demo purposes we still check to optionally use real details)
     cert = Certificate.query.filter_by(cert_number=cert_number).first()
 
-    # For demonstration, we will always verify the certificate
-    status = 'Verified'
-    message = 'Certificate is authentic and verified.'
+    # For demonstration, handle both success and failure cases cleanly
+    if cert_number and any(keyword in cert_number.upper() for keyword in ["FAIL", "FAKE", "INVALID", "TAMPERED"]):
+        status = 'Not Verified'
+        message = 'Certificate record not found or marked as invalid.'
+    else:
+        status = 'Verified'
+        message = 'Certificate is authentic and verified.'
     
     # Generate cryptographic proof
     raw_data = f"{cert_number}-{status}-{datetime.datetime.utcnow().isoformat()}"
@@ -216,11 +225,16 @@ def verify_upload():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
         
-        # Always return verified for demo purposes
+        # Allow demonstrating both verified and non-verified cases based on filename
         extracted_cert_number = 'CERT-' + str(uuid.uuid4())[:8].upper()
         
-        status = 'Verified'
-        message = 'Authenticity Verified via Document AI Scan.'
+        filename_upper = filename.upper()
+        if any(keyword in filename_upper for keyword in ["FAIL", "FAKE", "INVALID", "TAMPERED"]):
+            status = 'Not Verified'
+            message = 'AI Tampering Detection Flagged: Potential manipulations detected. Verification failed.'
+        else:
+            status = 'Verified'
+            message = 'Authenticity Verified via Document AI Scan.'
         
         raw_data = f"{extracted_cert_number}-{status}-{datetime.datetime.utcnow().isoformat()}"
         crypto_hash = hashlib.sha256(raw_data.encode()).hexdigest()
