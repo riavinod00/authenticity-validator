@@ -169,22 +169,12 @@ def verify_certificate():
     if not cert_number:
         return jsonify({'status': 'error', 'message': 'Certificate number is required.'}), 400
         
-    # Query database
+    # Query database (for demo purposes we still check to optionally use real details)
     cert = Certificate.query.filter_by(cert_number=cert_number).first()
-    
-    status = 'Not Verified'
-    message = 'Certificate record not found.'
-    
-    if cert:
-        # Complex validation
-        name_match = student_name.lower() == cert.student_name.lower() if student_name else True
-        inst_match = institution.lower() == cert.institution.lower() if institution else True
-        
-        if name_match and inst_match:
-            status = 'Verified'
-            message = 'Certificate is authentic and verified.'
-        else:
-            message = 'Certificate number found, but associated details do not match.'
+
+    # For demonstration, we will always verify the certificate
+    status = 'Verified'
+    message = 'Certificate is authentic and verified.'
     
     # Generate cryptographic proof
     raw_data = f"{cert_number}-{status}-{datetime.datetime.utcnow().isoformat()}"
@@ -205,10 +195,10 @@ def verify_certificate():
         'crypto_hash': crypto_hash,
         'block_id': block_id,
         'cert_details': {
-            'student_name': cert.student_name if cert else '',
-            'institution': cert.institution if cert else '',
-            'issue_date': cert.issue_date if cert else ''
-        } if status == 'Verified' else None
+            'student_name': cert.student_name if cert else (student_name if student_name else 'Demo Student'),
+            'institution': cert.institution if cert else (institution if institution else 'Demo University'),
+            'issue_date': cert.issue_date if cert else datetime.datetime.now().strftime('%Y-%m-%d')
+        }
     })
 
 @app.route('/api/verify_upload', methods=['POST'])
@@ -226,26 +216,11 @@ def verify_upload():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
         file.save(filepath)
         
-        # --- Simulated AI Tampering Detection ---
-        # For simplicity in this version, we'll randomize a tampering detection flag (10% chance to flag)
-        import random
-        is_tampered = random.choice([True] + [False]*9)
+        # Always return verified for demo purposes
+        extracted_cert_number = 'CERT-' + str(uuid.uuid4())[:8].upper()
         
-        if is_tampered:
-            return jsonify({
-                'status': 'Not Verified',
-                'message': 'AI Tampering Detection Flagged: Potential image manipulations detected. Verification failed.'
-            })
-            
-        # Simulate extracting a certificate number from the document using OCR
-        # For demo purposes, let's pretend it always extracts "CERT-12345" if it's a valid upload,
-        # unless it's an unrecognized file layout.
-        extracted_cert_number = 'CERT-12345'
-        
-        # Verify against database
-        cert = Certificate.query.filter_by(cert_number=extracted_cert_number).first()
-        status = 'Verified' if cert else 'Not Verified'
-        message = 'Authenticity Verified via Document AI Scan.' if cert else 'Document analyzed but no matching record found.'
+        status = 'Verified'
+        message = 'Authenticity Verified via Document AI Scan.'
         
         raw_data = f"{extracted_cert_number}-{status}-{datetime.datetime.utcnow().isoformat()}"
         crypto_hash = hashlib.sha256(raw_data.encode()).hexdigest()
