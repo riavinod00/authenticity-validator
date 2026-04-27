@@ -63,11 +63,11 @@ with app.app_context():
 
     # Add mock certificates if empty
     if not Certificate.query.first():
-        cert1 = Certificate(cert_number='CERT-12345', student_name='John Doe', institution='Tech University', issue_date='2025-05-15')
-        cert2 = Certificate(cert_number='CERT-23456', student_name='Jane Smith', institution='Global Academy', issue_date='2024-01-20')
-        cert3 = Certificate(cert_number='CERT-34567', student_name='Arjun Nair', institution='National Institute', issue_date='2023-11-10')
-        cert4 = Certificate(cert_number='CERT-45678', student_name='Meera Iyer', institution='City College', issue_date='2025-02-12')
-        cert5 = Certificate(cert_number='CERT-56789', student_name='Rahul Verma', institution='Innovation University', issue_date='2024-08-30')
+        cert1 = Certificate(cert_number='CERT-1CT12CS192', student_name='Ram Govind', institution='Central University', issue_date='2013-05-15')
+        cert2 = Certificate(cert_number='CERT-1SP12EC134', student_name='Priya Micheal', institution='State Public University', issue_date='2014-01-20')
+        cert3 = Certificate(cert_number='CERT-1DU12EEE167', student_name='Kavitha Nair', institution='Deemed University', issue_date='2023-11-10')
+        cert4 = Certificate(cert_number='CERT-1RV12ISE201', student_name='Meera Iyer', institution='R V COLLEGE', issue_date='2015-02-12')
+        cert5 = Certificate(cert_number='CERT-1PES12CS192', student_name='Rahul Verma', institution='PES COLLEGE', issue_date='2013-08-30')
         db.session.add_all([cert1, cert2, cert3, cert4, cert5])
         db.session.commit()
 
