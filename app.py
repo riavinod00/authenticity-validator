@@ -9,6 +9,12 @@ from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
 from authlib.integrations.flask_client import OAuth
 from models import db, User, Certificate, VerificationHistory
+from dotenv import load_dotenv
+import google.generativeai as genai
+import base64
+from PIL import Image
+
+load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = 'super-secret-key-keep-it-simple'
@@ -46,22 +52,23 @@ login_manager = LoginManager()
 login_manager.login_view = 'login'
 login_manager.init_app(app)
 
+# Configure Gemini
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# --- Database Initialization (for demo) ---
+# --- Database Initialization ---
 with app.app_context():
     db.create_all()
 
-    # Add a mock admin if not exists
     if not User.query.filter_by(username='admin').first():
         hashed_password = generate_password_hash('password', method='pbkdf2:sha256')
         new_user = User(username='admin', password_hash=hashed_password)
         db.session.add(new_user)
         db.session.commit()
 
-    # Add mock certificates if empty
     if not Certificate.query.first():
         cert1 = Certificate(cert_number='CERT-1CT12CS192', student_name='Ram Govind', institution='Central University', issue_date='2013-05-15')
         cert2 = Certificate(cert_number='CERT-1SP12EC134', student_name='Priya Micheal', institution='State Public University', issue_date='2014-01-20')
@@ -165,7 +172,6 @@ def verify_certificate():
     if not cert_number:
         return jsonify({'status': 'error', 'message': 'Certificate number is required.'}), 400
 
-    # Query database — only verified if certificate actually exists
     cert = Certificate.query.filter_by(cert_number=cert_number).first()
 
     if cert:
@@ -175,12 +181,10 @@ def verify_certificate():
         status = 'Not Verified'
         message = 'Certificate not found in the registry.'
 
-    # Generate cryptographic proof
     raw_data = f"{cert_number}-{status}-{datetime.datetime.utcnow().isoformat()}"
     crypto_hash = hashlib.sha256(raw_data.encode()).hexdigest()
     block_id = "BLK-" + str(uuid.uuid4())[:8].upper()
 
-    # Save History
     new_history = VerificationHistory(
         user_id=current_user.id, cert_number=cert_number, status=status,
         method='Manual', crypto_hash=crypto_hash, block_id=block_id
@@ -201,24 +205,37 @@ def verify_certificate():
     })
 
 @app.route('/api/verify_upload', methods=['POST'])
-import google.generativeai as genai
-from PIL import Image
+@login_required
+def verify_upload():
+    if 'document' not in request.files:
+        return jsonify({'status': 'error', 'message': 'No file part'}), 400
 
-# Configure Gemini
-genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
+    file = request.files['document']
+    if file.filename == '':
+        return jsonify({'status': 'error', 'message': 'No selected file'}), 400
 
-# Inside your verify_upload route:
-img = Image.open(filepath)
-model = genai.GenerativeModel("gemini-1.5-flash")  # free model
+    if file:
+        filename = secure_filename(file.filename)
+        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+        file.save(filepath)
 
-ai_response = model.generate_content([
-    img,
-    """You are an expert academic certificate validator.
-Analyze this certificate and check for:
+        try:
+            # --- Gemini Vision AI Scan ---
+            img = Image.open(filepath)
+            model = genai.GenerativeModel("gemini-1.5-flash")
+
+            ai_response = model.generate_content([
+                img,
+                """You are an expert academic certificate validator.
+Analyze this certificate image and check for:
 1. Official seals or stamps
 2. Authorized signatures
 3. Consistent fonts and formatting
-4. Signs of tampering or photoshopping
+4. Institution name and branding
+5. Issue date, course/degree name, recipient name
+6. Any signs of tampering, photoshopping, or inconsistencies
+
+Also extract the certificate number if visible (look for patterns like CERT-XXXX).
 
 Respond in EXACTLY this format:
 VERDICT: VERIFIED or NOT VERIFIED
@@ -230,9 +247,81 @@ REASONS:
 - reason 1
 - reason 2
 SUSPICIOUS_ELEMENTS: (list issues or None)"""
-])
+            ])
 
-ai_text = ai_response.text
+            ai_text = ai_response.text
+
+            # Parse AI response
+            def extract_field(label, text):
+                for line in text.splitlines():
+                    if line.startswith(label):
+                        return line.split(':', 1)[-1].strip()
+                return 'UNKNOWN'
+
+            ai_verdict    = extract_field('VERDICT', ai_text)
+            ai_cert_number = extract_field('CERT_NUMBER', ai_text)
+            ai_student_name = extract_field('STUDENT_NAME', ai_text)
+            ai_institution  = extract_field('INSTITUTION', ai_text)
+            ai_confidence   = extract_field('CONFIDENCE', ai_text)
+
+            # Cross-check with database
+            cert_check = None
+            if ai_cert_number != 'UNKNOWN':
+                cert_check = Certificate.query.filter_by(cert_number=ai_cert_number).first()
+
+            # Final verdict
+            if ai_verdict == 'VERIFIED' and cert_check:
+                status = 'Verified'
+                message = f'AI Scan passed ({ai_confidence} confidence) and certificate found in registry.'
+            elif ai_verdict == 'VERIFIED' and not cert_check:
+                status = 'Not Verified'
+                message = 'AI Scan passed but certificate not found in registry.'
+            else:
+                status = 'Not Verified'
+                message = f'AI Scan flagged this certificate as suspicious ({ai_confidence} confidence).'
+
+        except Exception as e:
+            status = 'Not Verified'
+            message = f'AI scan failed: {str(e)}'
+            ai_cert_number  = 'UNKNOWN'
+            ai_student_name = 'Unknown'
+            ai_institution  = 'Unknown'
+            cert_check = None
+
+        # Crypto proof
+        raw_data = f"{ai_cert_number}-{status}-{datetime.datetime.utcnow().isoformat()}"
+        crypto_hash = hashlib.sha256(raw_data.encode()).hexdigest()
+        block_id = "BLK-" + str(uuid.uuid4())[:8].upper()
+
+        # Save history
+        new_history = VerificationHistory(
+            user_id=current_user.id,
+            cert_number=ai_cert_number,
+            status=status,
+            method='Upload & AI Scan',
+            crypto_hash=crypto_hash,
+            block_id=block_id
+        )
+        db.session.add(new_history)
+        db.session.commit()
+
+        # Cleanup
+        try:
+            os.remove(filepath)
+        except Exception:
+            pass
+
+        return jsonify({
+            'status': status,
+            'message': message,
+            'crypto_hash': crypto_hash,
+            'block_id': block_id,
+            'cert_details': {
+                'student_name': cert_check.student_name if cert_check else ai_student_name,
+                'institution': cert_check.institution if cert_check else ai_institution,
+                'issue_date': cert_check.issue_date if cert_check else 'N/A'
+            }
+        })
 
 @app.route('/api/analytics', methods=['GET'])
 @login_required
