@@ -201,69 +201,38 @@ def verify_certificate():
     })
 
 @app.route('/api/verify_upload', methods=['POST'])
-@login_required
-def verify_upload():
-    if 'document' not in request.files:
-        return jsonify({'status': 'error', 'message': 'No file part'}), 400
+import google.generativeai as genai
+from PIL import Image
 
-    file = request.files['document']
-    if file.filename == '':
-        return jsonify({'status': 'error', 'message': 'No selected file'}), 400
+# Configure Gemini
+genai.configure(api_key=os.environ.get("GEMINI_API_KEY"))
 
-    if file:
-        filename = secure_filename(file.filename)
-        filepath = os.path.join(app.config['UPLOAD_FOLDER'], filename)
-        file.save(filepath)
+# Inside your verify_upload route:
+img = Image.open(filepath)
+model = genai.GenerativeModel("gemini-1.5-flash")  # free model
 
-        # Extract cert number from filename or content (basic approach)
-        # Try to find a matching certificate by looking for known cert numbers in the filename
-        extracted_cert_number = None
-        name_without_ext = os.path.splitext(filename)[0].upper()
+ai_response = model.generate_content([
+    img,
+    """You are an expert academic certificate validator.
+Analyze this certificate and check for:
+1. Official seals or stamps
+2. Authorized signatures
+3. Consistent fonts and formatting
+4. Signs of tampering or photoshopping
 
-        # Check if filename contains a known cert number pattern
-        all_certs = Certificate.query.all()
-        for c in all_certs:
-            if c.cert_number.upper() in name_without_ext:
-                extracted_cert_number = c.cert_number
-                break
+Respond in EXACTLY this format:
+VERDICT: VERIFIED or NOT VERIFIED
+CONFIDENCE: High / Medium / Low
+CERT_NUMBER: (extracted cert number or UNKNOWN)
+STUDENT_NAME: (extracted name or UNKNOWN)
+INSTITUTION: (extracted institution or UNKNOWN)
+REASONS:
+- reason 1
+- reason 2
+SUSPICIOUS_ELEMENTS: (list issues or None)"""
+])
 
-        # If no match found in filename, generate a placeholder
-        if not extracted_cert_number:
-            extracted_cert_number = 'CERT-' + str(uuid.uuid4())[:8].upper()
-
-        # Only verify if we found a real matching certificate
-        cert_check = Certificate.query.filter_by(cert_number=extracted_cert_number).first()
-        if cert_check:
-            status = 'Verified'
-            message = 'Authenticity Verified via Document AI Scan.'
-        else:
-            status = 'Not Verified'
-            message = 'Certificate not found in registry.'
-
-        raw_data = f"{extracted_cert_number}-{status}-{datetime.datetime.utcnow().isoformat()}"
-        crypto_hash = hashlib.sha256(raw_data.encode()).hexdigest()
-        block_id = "BLK-" + str(uuid.uuid4())[:8].upper()
-
-        # Record history
-        new_history = VerificationHistory(
-            user_id=current_user.id, cert_number=extracted_cert_number, status=status,
-            method='Upload & AI Scan', crypto_hash=crypto_hash, block_id=block_id
-        )
-        db.session.add(new_history)
-        db.session.commit()
-
-        # Clean up file
-        try:
-            os.remove(filepath)
-        except Exception:
-            pass
-
-        return jsonify({
-            'status': status,
-            'message': message,
-            'crypto_hash': crypto_hash,
-            'block_id': block_id
-        })
+ai_text = ai_response.text
 
 @app.route('/api/analytics', methods=['GET'])
 @login_required
